@@ -4,3 +4,4 @@ azure-storage-blob
 pandas
 PyMuPDF
 openpyxl
+cryptography<3.4
