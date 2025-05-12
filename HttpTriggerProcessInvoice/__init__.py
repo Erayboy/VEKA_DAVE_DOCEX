@@ -28,13 +28,11 @@ def main(blob: bytes, name: str):
 
         split_dir = os.path.join(tmpdir, "gesplitst")
         split_pdf_to_invoices(local_pdf_path, split_dir, client)
-
         records = extract_invoice_records(split_dir, client)
 
         output_excel = os.path.join(tmpdir, f"{name}_output.xlsx")
         export_to_excel(records, output_excel)
 
-        # Upload naar blob storage
         connection_string = os.environ.get("AzureWebJobsStorage")
         if not connection_string:
             logging.error("AzureWebJobsStorage ontbreekt.")
