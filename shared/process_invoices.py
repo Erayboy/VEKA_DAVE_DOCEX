@@ -5,11 +5,13 @@ import io
 import os
 import pandas as pd
 import re
+import logging
 
-# Azure credentials
-endpoint = "https://di-weu-dave-docextract-01.cognitiveservices.azure.com/"
-key = "53bcfNN3Xm1jF6aIkrdOPx7wSgJBIYd1jRdLR2AJUVRoF9gLMnX5JQQJ99BEAC5RqLJXJ3w3AAALACOGGBbr"
-client = DocumentAnalysisClient(endpoint, AzureKeyCredential(key))
+def create_client(endpoint, key):
+    """
+    Maak een Form Recognizer client aan op basis van configuratie.
+    """
+    return DocumentAnalysisClient(endpoint, AzureKeyCredential(key))
 
 
 def split_pdf_to_invoices(input_pdf_path, output_dir, client):
@@ -55,10 +57,10 @@ def split_pdf_to_invoices(input_pdf_path, output_dir, client):
         nieuwe_pdf = fitz.open()
         for pagina_nummer in pagina_groep:
             nieuwe_pdf.insert_pdf(pdf, from_page=pagina_nummer, to_page=pagina_nummer)
-        nieuwe_pdf.save(f"{output_dir}/factuur_{idx+1}.pdf")
-        print(f"Gesplitste factuur opgeslagen: factuur_{idx+1}.pdf (pagina’s {pagina_groep})")
+        nieuwe_pdf.save(os.path.join(output_dir, f"factuur_{idx+1}.pdf"))
+        logging.info(f"Gesplitste factuur opgeslagen: factuur_{idx+1}.pdf (pagina’s {pagina_groep})")
 
-    print(f"\nKlaar! Totaal {len(factuurgroepen)} facturen gesplitst en opgeslagen in '{output_dir}/'")
+    logging.info(f"Totaal {len(factuurgroepen)} facturen gesplitst en opgeslagen in '{output_dir}'")
     return output_dir
 
 
@@ -96,7 +98,6 @@ def extract_invoice_records(output_dir, client):
                     extracted_invoice_total = re.sub(r"[^\d.]", "", extracted_invoice_total)
                     extracted_invoice_total = float(extracted_invoice_total) if extracted_invoice_total else None
 
-                # Compute average confidence
                 confidences = []
                 for field in [invoice_id_field, invoice_date_field, invoice_total_field]:
                     if field and field.confidence is not None:
@@ -112,10 +113,9 @@ def extract_invoice_records(output_dir, client):
                 ])
 
         except Exception as e:
-            print(f"Fout bij verwerken van bestand {file_name}: {e}")
+            logging.warning(f"Fout bij verwerken van bestand {file_name}: {e}")
 
     return invoice_records
-
 
 
 def export_to_excel(invoice_records, filename):
@@ -124,19 +124,4 @@ def export_to_excel(invoice_records, filename):
     """
     df = pd.DataFrame(invoice_records, columns=["InvoiceId", "InvoiceDate", "InvoiceTotal", "avg_confidence", "FactuurLocatie"])
     df.to_excel(filename, index=False)
-    print(f"Factuurgegevens geëxporteerd naar {filename}")
-
-
-# === MAIN FLOW ===
-input_pdf = "schijf1en2_RWWN2021-1-01-MIROM_facturen.pdf"
-output_dir = "gesplitste_facturen_5"
-output_excel= "makkelijk.xlsx"
-
-# Stap 1: Splits PDF
-factuurmap = split_pdf_to_invoices(input_pdf, output_dir, client)
-
-# Stap 2: Extract data
-records = extract_invoice_records(factuurmap, client)
-
-# Stap 3: Export naar Excel
-export_to_excel(records, output_excel)
+    logging.info(f"Factuurgegevens geëxporteerd naar {filename}")
