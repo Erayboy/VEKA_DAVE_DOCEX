@@ -22,6 +22,8 @@ jobs:
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - name: Clean previous packages
+      run: rm -rf .python_packages && mkdir -p .python_packages/lib/site-packages
     - name: Install dependencies
       run: pip install -r requirements.txt --target=".python_packages/lib/site-packages"
      
