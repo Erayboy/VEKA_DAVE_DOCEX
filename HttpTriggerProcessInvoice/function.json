@@ -2,9 +2,11 @@
   "scriptFile": "__init__.py",
   "bindings": [
     {
-      "type": "eventGridTrigger",
-      "name": "event",
-      "direction": "in"
+      "type": "blobTrigger",
+      "name": "blob",
+      "direction": "in",
+      "path": "invoices/{name}",
+      "connection": "AzureWebJobsStorage"
     }
   ]
 }
