@@ -8,7 +8,7 @@ from shared.process_invoices import (
     extract_invoice_records,
     export_to_excel
 )
-
+#dd
 def main(blob: bytes, name: str):
     logging.info("== Blob-trigger gestart ==")
     logging.info(f"Ontvangen bestand: {name}")
