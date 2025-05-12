@@ -7,8 +7,8 @@ import pandas as pd
 import re
 
 # Azure credentials
-endpoint = "https://di-weu-sbx-docextract-02.cognitiveservices.azure.com/"
-key = "d0c7c9a85b9d44f4a85d9584345ffe95"
+endpoint = "https://di-weu-dave-docextract-01.cognitiveservices.azure.com/"
+key = "53bcfNN3Xm1jF6aIkrdOPx7wSgJBIYd1jRdLR2AJUVRoF9gLMnX5JQQJ99BEAC5RqLJXJ3w3AAALACOGGBbr"
 client = DocumentAnalysisClient(endpoint, AzureKeyCredential(key))
 
 
