@@ -1,0 +1,6 @@
+azure-ai-formrecognizer
+azure-core
+azure-storage-blob
+pandas
+PyMuPDF
+openpyxl
