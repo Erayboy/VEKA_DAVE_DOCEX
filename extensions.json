@@ -1,0 +1,9 @@
+{
+    "extensions": [
+      {
+        "name": "Microsoft.Azure.WebJobs.Extensions.Storage.Blobs",
+        "typeName": "BlobTrigger"
+      }
+    ]
+  }
+  
