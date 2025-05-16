@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import azure.functions as func
 from azure.storage.blob import BlobServiceClient
 from shared.process_invoices import (
     create_client,
@@ -9,9 +10,11 @@ from shared.process_invoices import (
     export_to_excel
 )
 
-def main(blob: bytes, name: str):
+def main(blob: func.InputStream):
     logging.info("== Blob-trigger gestart ==")
-    logging.info(f"Ontvangen bestand: {name}")
+    logging.info(f"Ontvangen bestand: {blob.name}")
+
+    name = os.path.basename(blob.name)
 
     endpoint = os.environ.get("FORM_RECOGNIZER_ENDPOINT")
     key = os.environ.get("FORM_RECOGNIZER_KEY")
@@ -24,7 +27,7 @@ def main(blob: bytes, name: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         local_pdf_path = os.path.join(tmpdir, name)
         with open(local_pdf_path, "wb") as f:
-            f.write(blob)
+            f.write(blob.read())
 
         split_dir = os.path.join(tmpdir, "gesplitst")
         split_pdf_to_invoices(local_pdf_path, split_dir, client)
@@ -34,7 +37,6 @@ def main(blob: bytes, name: str):
         output_excel = os.path.join(tmpdir, f"{name}_output.xlsx")
         export_to_excel(records, output_excel)
 
-        # Upload naar blob storage
         connection_string = os.environ.get("AzureWebJobsStorage")
         if not connection_string:
             logging.error("AzureWebJobsStorage ontbreekt.")
