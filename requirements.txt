@@ -5,4 +5,3 @@ pandas
 PyMuPDF
 openpyxl
 cryptography==3.4.8
-python
