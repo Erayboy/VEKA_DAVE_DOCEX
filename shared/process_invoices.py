@@ -7,11 +7,16 @@ import pandas as pd
 import re
 import logging
 
-def create_client(endpoint, key):
-    """
-    Maak een Form Recognizer client aan op basis van configuratie.
-    """
-    return DocumentAnalysisClient(endpoint, AzureKeyCredential(key))
+metadata_table = [
+    {"id": 1, "SourceColumnName": "InvoiceId", "TargetColumnName": "invoice_id"},
+    {"id": 2, "SourceColumnName": "InvoiceDate", "TargetColumnName": "invoice_date"},
+    {"id": 3, "SourceColumnName": "InvoiceTotal", "TargetColumnName": "invoice_total"},
+    {"id": 4, "SourceColumnName": "SubTotal", "TargetColumnName": "invoice_total_without_vat"},
+    {"id": 5, "SourceColumnName": "CustomerName", "TargetColumnName": "customer_name"},
+    {"id": 6, "SourceColumnName": "Description", "TargetColumnName": "invoice_topic"}
+]
+
+
 
 
 def split_pdf_to_invoices(input_pdf_path, output_dir, client):
@@ -64,9 +69,10 @@ def split_pdf_to_invoices(input_pdf_path, output_dir, client):
     return output_dir
 
 
-def extract_invoice_records(output_dir, client):
+def extract_invoice_records(output_dir, client, metadata_table):
     """
-    Extracteer factuurgegevens uit afzonderlijke PDF-bestanden in een map.
+    Extracteer factuurgegevens op basis van opgegeven metadata kolommen.
+    Alles wordt bepaald via metadata_table, incl. totaal zonder btw (SubTotal).
     """
     invoice_records = []
     for file_name in os.listdir(output_dir):
@@ -84,38 +90,38 @@ def extract_invoice_records(output_dir, client):
             invoice_data = poller.result()
 
             for invoice in invoice_data.documents:
-                invoice_id_field = invoice.fields.get("InvoiceId", None)
-                invoice_date_field = invoice.fields.get("InvoiceDate", None)
-                invoice_total_field = invoice.fields.get("InvoiceTotal", None)
-
-                extracted_invoice_id = invoice_id_field.value if invoice_id_field else None
-                extracted_invoice_date = invoice_date_field.value if invoice_date_field else None
-                extracted_invoice_total = invoice_total_field.value if invoice_total_field else None
-
-                if extracted_invoice_total:
-                    extracted_invoice_total = str(extracted_invoice_total)
-                    extracted_invoice_total = extracted_invoice_total.encode("ascii", "ignore").decode("ascii")
-                    extracted_invoice_total = re.sub(r"[^\d.]", "", extracted_invoice_total)
-                    extracted_invoice_total = float(extracted_invoice_total) if extracted_invoice_total else None
-
+                record = {}
                 confidences = []
-                for field in [invoice_id_field, invoice_date_field, invoice_total_field]:
+
+                for column in metadata_table:
+                    source_col = column["SourceColumnName"]
+                    target_col = column["TargetColumnName"]
+
+                    field = invoice.fields.get(source_col, None)
+                    value = field.value if field else None
+
+                    # Schoonmaak voor bedragvelden
+                    if source_col in ["InvoiceTotal", "TotalTax", "SubTotal"] and value:
+                        value = str(value)
+                        value = value.encode("ascii", "ignore").decode("ascii")
+                        value = re.sub(r"[^\d.]", "", value)
+                        value = float(value) if value else None
+
+                    record[target_col] = value
+
                     if field and field.confidence is not None:
                         confidences.append(field.confidence)
-                avg_confidence = sum(confidences) / len(confidences) if confidences else None
 
-                invoice_records.append([
-                    extracted_invoice_id,
-                    extracted_invoice_date,
-                    extracted_invoice_total,
-                    avg_confidence,
-                    file_name
-                ])
+                record["confidence"] = sum(confidences) / len(confidences) if confidences else None
+                record["file_name"] = file_name
+
+                invoice_records.append(record)
 
         except Exception as e:
             logging.warning(f"Fout bij verwerken van bestand {file_name}: {e}")
 
     return invoice_records
+
 
 
 def export_to_excel(invoice_records, filename):

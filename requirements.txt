@@ -5,3 +5,7 @@ pandas
 PyMuPDF
 openpyxl
 cryptography==3.4.8
+lxml==4.6.3  # zoals jij al gebruikt
+xmlsec==1.3.12
+zeep[async]==4.0.0
+httpx==0.23.3

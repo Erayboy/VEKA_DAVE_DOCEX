@@ -1,57 +1,61 @@
 import logging
 import os
 import tempfile
-import azure.functions as func
-from azure.storage.blob import BlobServiceClient
-from shared.process_invoices import (
-    create_client,
-    split_pdf_to_invoices,
-    extract_invoice_records,
-    export_to_excel
-)
 
-def main(blob: func.InputStream):
-    logging.info("== Blob-trigger gestart ==")
-    logging.info(f"Ontvangen bestand: {blob.name}")
+from shared.client import create_client
+from shared.splitter import split_pdf_to_invoices
+from shared.extractor import extract_invoice_records
+from shared.exporter import export_to_excel
+from shared.metadata import metadata_table
 
-    name = os.path.basename(blob.name)
 
-    endpoint = os.environ.get("FORM_RECOGNIZER_ENDPOINT")
-    key = os.environ.get("FORM_RECOGNIZER_KEY")
-    if not endpoint or not key:
-        logging.error("Endpoint of key ontbreekt in Application Settings.")
-        return
+def main(blob: bytes, name: str):
+    logging.info(f"Nieuwe blob ontvangen: {name}, grootte: {len(blob)} bytes")
 
-    client = create_client(endpoint, key)
+    try:
+        # Configuratie ophalen uit omgeving
+        endpoint = os.getenv("FORM_RECOGNIZER_ENDPOINT")
+        key = os.getenv("FORM_RECOGNIZER_KEY")
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        local_pdf_path = os.path.join(tmpdir, name)
-        with open(local_pdf_path, "wb") as f:
-            f.write(blob.read())
+        # Bestandsnamen voorbereiden
+        base_name = os.path.splitext(name)[0]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_pdf_path = os.path.join(temp_dir, name)
+            output_dir = os.path.join(temp_dir, "split")
+            output_excel = os.path.join(temp_dir, f"{base_name}_DOCEX.xlsx")
 
-        split_dir = os.path.join(tmpdir, "gesplitst")
-        split_pdf_to_invoices(local_pdf_path, split_dir, client)
+            # Blob-inhoud opslaan als tijdelijk PDF-bestand
+            with open(input_pdf_path, "wb") as f:
+                f.write(blob)
 
-        records = extract_invoice_records(split_dir, client)
+            # Client aanmaken
+            client = create_client(endpoint, key)
 
-        output_excel = os.path.join(tmpdir, f"{name}_output.xlsx")
-        export_to_excel(records, output_excel)
+            # Verwerk PDF
+            split_pdf_to_invoices(input_pdf_path, output_dir, client)
+            records = extract_invoice_records(output_dir, client, metadata_table)
+            export_to_excel(records, output_excel)
+             # Upload naar Blob Storage
+            connection_string = os.getenv("AzureWebJobsStorage")
+            if not connection_string:
+                logging.error("AzureWebJobsStorage ontbreekt.")
+                return
 
-        connection_string = os.environ.get("AzureWebJobsStorage")
-        if not connection_string:
-            logging.error("AzureWebJobsStorage ontbreekt.")
-            return
+            from azure.storage.blob import BlobServiceClient
+            blob_service = BlobServiceClient.from_connection_string(connection_string)
+            container_client = blob_service.get_container_client("output")
 
-        blob_service = BlobServiceClient.from_connection_string(connection_string)
-        container_client = blob_service.get_container_client("output")
-
-        try:
             with open(output_excel, "rb") as data:
                 container_client.upload_blob(
-                    name=f"{name}_output.xlsx",
+                    name=f"{base_name}_DOCEX.xlsx",
                     data=data,
                     overwrite=True
                 )
-                logging.info(f"Excel-bestand geüpload als: {name}_output.xlsx")
-        except Exception as e:
-            logging.error(f"Fout bij uploaden Excel-bestand: {e}")
+                logging.info(f"Excel-bestand succesvol geüpload als '{base_name}_DOCEX.xlsx' in container 'output'")
+
+
+            logging.info(f"Facturen geëxporteerd naar: {output_excel}")
+
+    except Exception as e:
+        logging.error(f"Fout tijdens verwerking van blob '{name}': {e}")
+        raise e
