@@ -22,11 +22,24 @@ jobs:
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Install system dependencies for lxml/xmlsec
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libxml2-dev \
+          libxslt-dev \
+          libxmlsec1-dev \
+          libffi-dev \
+          libssl-dev \
+          gcc \
+          python3-dev
+
     - name: Clean previous packages
       run: rm -rf .python_packages && mkdir -p .python_packages/lib/site-packages
-    - name: Install dependencies
+
+    - name: Install Python dependencies
       run: pip install -r requirements.txt --target=".python_packages/lib/site-packages"
-     
 
     - name: Deploy to Azure Function App
       uses: Azure/functions-action@v1
